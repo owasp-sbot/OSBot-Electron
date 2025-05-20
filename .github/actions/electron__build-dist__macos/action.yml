@@ -6,10 +6,10 @@ inputs:
     description: 'Node.js version to use'
     required: false
     default: '18'
-  working-directory:
-    description: 'Directory containing the package.json file'
+  electron-app-path:
+    description: 'Path to the electron app directory'
     required: false
-    default: '.'
+    default: 'electron_app'
   artifact-name:
     description: 'Name for the uploaded artifact'
     required: false
@@ -23,34 +23,45 @@ runs:
       with:
         node-version: ${{ inputs.node-version }}
         cache: 'npm'
+        cache-dependency-path: ${{ inputs.electron-app-path }}/package-lock.json
+
+    - name: Check directory structure
+      shell: bash
+      run: |
+        echo "Repository root:"
+        ls -la
+        echo "Electron app directory:"
+        ls -la ${{ inputs.electron-app-path }}
 
     - name: Install dependencies
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working-directory: ${{ inputs.electron-app-path }}
       run: |
-        echo "Installing dependencies..."
+        echo "Installing dependencies in ${{ inputs.electron-app-path }}..."
         npm ci || npm install
 
     - name: Build macOS app
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working-directory: ${{ inputs.electron-app-path }}
       run: |
-        echo "Building macOS app..."
+        echo "Building macOS app in ${{ inputs.electron-app-path }}..."
         npm run build
 
     - name: List dist directory contents
       shell: bash
-      working-directory: ${{ inputs.working-directory }}
+      working-directory: ${{ inputs.electron-app-path }}
       run: |
         echo "Listing dist directory contents:"
-        ls -la dist
+        ls -la dist || echo "dist directory not found"
         ls -la dist/mac-arm64 || echo "mac-arm64 directory not found"
+        ls -la dist/mac || echo "mac directory not found"
 
     - name: Upload DMG artifact
       uses: actions/upload-artifact@v4
       with:
         name: ${{ inputs.artifact-name }}
         path: |
-          ${{ inputs.working-directory }}/dist/*.dmg
-          ${{ inputs.working-directory }}/dist/mac-arm64/*.dmg
+          ${{ inputs.electron-app-path }}/dist/*.dmg
+          ${{ inputs.electron-app-path }}/dist/mac-arm64/*.dmg
+          ${{ inputs.electron-app-path }}/dist/mac/*.dmg
         if-no-files-found: warn
