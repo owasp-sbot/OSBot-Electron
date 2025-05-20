@@ -58,7 +58,10 @@ jobs:
       - uses: actions/checkout@v4
       - name: "build-macos-dmg"
         uses: ./.github/actions/electron__build-dist__macos
-        electron-app-path: 'electron_app'
-        mac-certs: ${{ secrets.MAC_CERTS }}
-        mac-certs-password: ${{ secrets.MAC_CERTS_PASSWORD }}
-
+        with:
+          electron-app-path: 'electron_app'
+          mac-certs: ${{ secrets.MAC_CERTS }}
+          mac-certs-password: ${{ secrets.MAC_CERTS_PASSWORD }}
+          apple-id: ${{ secrets.APPLE_ID }}
+          apple-id-password: ${{ secrets.APPLE_ID_PASSWORD }}
+          team-id: ${{ secrets.APPLE_TEAM_ID }}
