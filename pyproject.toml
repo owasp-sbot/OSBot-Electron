@@ -11,3 +11,6 @@ repository  = "https://github.com/owasp-sbot/OSBot-Electron"
 [tool.poetry.dependencies]
 python          = "^3.11"
 osbot-utils     = "*"
+fastapi         = "*"
+pydantic        = "*"
+uvicorn         = "*"
