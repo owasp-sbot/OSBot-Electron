@@ -1,0 +1,45 @@
+name: 'Build Electron macOS DMG'
+description: 'Builds a macOS DMG file for an Electron application'
+
+inputs:
+  node-version:
+    description: 'Node.js version to use'
+    required: false
+    default: '18'
+  working-directory:
+    description: 'Directory containing the package.json file'
+    required: false
+    default: '.'
+  artifact-name:
+    description: 'Name for the uploaded artifact'
+    required: false
+    default: 'macos-dmg'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: 'npm'
+        cache-dependency-path: ${{ inputs.working-directory }}/package-lock.json
+
+    - name: Install dependencies
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm ci
+
+    - name: Build macOS app
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npm run build
+
+    - name: Upload DMG artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ inputs.artifact-name }}
+        path: |
+          ${{ inputs.working-directory }}/dist/*.dmg
+          ${{ inputs.working-directory }}/dist/mac-arm64/*.dmg
+        if-no-files-found: error

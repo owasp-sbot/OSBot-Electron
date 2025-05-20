@@ -6,6 +6,10 @@ const url = require('url');
 // Keep a global reference of the window object to prevent garbage collection
 let mainWindow;
 
+// added remote port to connect via Playwright
+app.commandLine.appendSwitch('remote-debugging-port', '9222');
+
+
 // FastAPI server URL - this should be configurable in the final app
 const DEFAULT_API_URL = 'http://localhost:8000/docs';
 

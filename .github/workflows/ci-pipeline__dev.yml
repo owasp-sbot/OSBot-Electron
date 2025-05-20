@@ -49,3 +49,12 @@ jobs:
         uses: owasp-sbot/OSBot-GitHub-Actions/.github/actions/pypi__twine__publish@dev
     needs:
       - increment-tag
+
+  electron__build-dist__macos:
+    name: "Build macOS DMG"
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: "build-macos-dmg"
+        uses: ./.github/actions/electron__build-dist__macos
+
