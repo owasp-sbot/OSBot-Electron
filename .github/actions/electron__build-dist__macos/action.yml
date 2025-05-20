@@ -1,5 +1,5 @@
-name: 'Build Electron macOS DMG'
-description: 'Builds a macOS DMG file for an Electron application'
+name: 'Build Electron macOS DMG (Self-Signed)'
+description: 'Builds a macOS DMG file for an Electron application with self-signing'
 
 inputs:
   node-version:
@@ -25,14 +25,6 @@ runs:
         cache: 'npm'
         cache-dependency-path: ${{ inputs.electron-app-path }}/package-lock.json
 
-    - name: Check directory structure
-      shell: bash
-      run: |
-        echo "Repository root:"
-        ls -la
-        echo "Electron app directory:"
-        ls -la ${{ inputs.electron-app-path }}
-
     - name: Install dependencies
       shell: bash
       working-directory: ${{ inputs.electron-app-path }}
@@ -40,11 +32,54 @@ runs:
         echo "Installing dependencies in ${{ inputs.electron-app-path }}..."
         npm ci || npm install
 
+    - name: Create self-signing certificate
+      shell: bash
+      run: |
+        echo "Creating self-signing certificate..."
+        # Create temporary directory for certificates
+        mkdir -p certs
+        
+        # Generate a self-signed certificate
+        openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -days 365 -nodes -subj "/CN=Developer Self-Signed/O=Development/C=US"
+        
+        # Create a keychain for the self-signed certificate
+        KEY_CHAIN=build.keychain
+        KEY_CHAIN_PASSWORD=temporary_password
+        
+        # Create a new keychain
+        security create-keychain -p "$KEY_CHAIN_PASSWORD" "$KEY_CHAIN"
+        security default-keychain -s "$KEY_CHAIN"
+        security unlock-keychain -p "$KEY_CHAIN_PASSWORD" "$KEY_CHAIN"
+        security set-keychain-settings -t 3600 -u "$KEY_CHAIN"
+        
+        # Convert to p12 format
+        openssl pkcs12 -export -out certs/certificate.p12 -inkey certs/key.pem -in certs/cert.pem -passout pass:temporary
+        
+        # Import to keychain
+        security import certs/certificate.p12 -k "$KEY_CHAIN" -P "temporary" -T "/usr/bin/codesign"
+        
+        # Set key partition list
+        security set-key-partition-list -S apple-tool:,apple: -s -k "$KEY_CHAIN_PASSWORD" "$KEY_CHAIN"
+
+    - name: Update electron-builder configuration for self-signing
+      shell: bash
+      working-directory: ${{ inputs.electron-app-path }}
+      run: |
+        echo "Updating electron-builder configuration for self-signing..."
+        # Check if package.json exists
+        if [ -f "package.json" ]; then
+          # Create a temporary file with modified contents
+          cat package.json | jq '.build.mac.identity = null' > package.json.tmp
+          mv package.json.tmp package.json
+        fi
+
     - name: Build macOS app
       shell: bash
       working-directory: ${{ inputs.electron-app-path }}
       run: |
         echo "Building macOS app in ${{ inputs.electron-app-path }}..."
+        # Set CSC_NAME to null to skip Apple's notarization
+        export CSC_NAME=null
         npm run build
 
     - name: List dist directory contents
@@ -53,8 +88,7 @@ runs:
       run: |
         echo "Listing dist directory contents:"
         ls -la dist || echo "dist directory not found"
-        ls -la dist/mac-arm64 || echo "mac-arm64 directory not found"
-        ls -la dist/mac || echo "mac directory not found"
+        find dist -type f -name "*.dmg" || echo "No DMG files found"
 
     - name: Upload DMG artifact
       uses: actions/upload-artifact@v4
@@ -64,4 +98,17 @@ runs:
           ${{ inputs.electron-app-path }}/dist/*.dmg
           ${{ inputs.electron-app-path }}/dist/mac-arm64/*.dmg
           ${{ inputs.electron-app-path }}/dist/mac/*.dmg
+        if-no-files-found: warn
+
+    - name: Create releases directory
+      shell: bash
+      run: |
+        mkdir -p releases
+        find ${{ inputs.electron-app-path }}/dist -name "*.dmg" -exec cp {} releases/ \;
+
+    - name: Upload releases directory as artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: releases
+        path: releases
         if-no-files-found: warn
