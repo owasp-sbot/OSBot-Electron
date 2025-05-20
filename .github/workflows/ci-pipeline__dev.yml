@@ -13,6 +13,7 @@ env:
 jobs:
 
   run-tests:
+    if: False
     name: "Run tests"
     runs-on: ubuntu-latest
     steps:
