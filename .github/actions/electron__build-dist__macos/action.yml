@@ -1,5 +1,5 @@
-name: 'Build Electron macOS DMG'
-description: 'Builds a macOS DMG file for an Electron application with code signing'
+name: 'Build Electron macOS Universal DMG'
+description: 'Builds a universal macOS DMG file for both Intel and Apple Silicon Macs'
 
 inputs:
   node-version:
@@ -13,7 +13,7 @@ inputs:
   artifact-name:
     description: 'Name for the uploaded artifact'
     required: false
-    default: 'macos-dmg'
+    default: 'macos-universal-dmg'
   mac-certs:
     description: 'Base64-encoded Apple certificates'
     required: false
@@ -52,6 +52,31 @@ runs:
         echo "Installing dependencies in ${{ inputs.electron-app-path }}..."
         npm ci || npm install
 
+    # Create temporary electron-builder config for universal build
+    - name: Configure for universal build
+      shell: bash
+      working-directory: ${{ inputs.electron-app-path }}
+      run: |
+        echo "Creating electron-builder config for universal build..."
+        # Create a temporary electron-builder.yml file
+        cat > electron-builder.yml << EOL
+        appId: com.mgraph.app
+        productName: MGraph App
+        mac:
+          category: public.app-category.developer-tools
+          target: dmg
+          arch:
+            - x64
+            - arm64
+          artifactName: "\${productName}-\${version}-universal.\${ext}"
+        dmg:
+          artifactName: "\${productName}-\${version}-universal.\${ext}"
+        EOL
+        
+        # Show the created config
+        echo "Created electron-builder.yml:"
+        cat electron-builder.yml
+
     # Setup code signing if certificates are provided
     - name: Setup macOS code signing
       if: inputs.mac-certs != '' && inputs.mac-certs-password != ''
@@ -89,22 +114,27 @@ runs:
         echo "APPLE_ID_PASSWORD=${{ inputs.apple-id-password }}" >> $GITHUB_ENV
         echo "APPLE_TEAM_ID=${{ inputs.team-id }}" >> $GITHUB_ENV
 
-    - name: Build macOS app
+    - name: Build universal macOS app
       shell: bash
       working-directory: ${{ inputs.electron-app-path }}
       run: |
-        echo "Building macOS app in ${{ inputs.electron-app-path }}..."
-        # If code signing is enabled, the build will use the certificates
-        npm run build
+        echo "Building universal macOS app in ${{ inputs.electron-app-path }}..."
+        # Set the electron-builder configuration overrides for a universal build
+        export CSC_IDENTITY_AUTO_DISCOVERY=false
+        # Run the build with the --universal flag
+        npx electron-builder --mac --universal
+        
+        # Clean up temporary config
+        if [ -f "electron-builder.yml" ]; then
+          rm electron-builder.yml
+        fi
 
     - name: List dist directory contents
       shell: bash
       working-directory: ${{ inputs.electron-app-path }}
       run: |
         echo "Listing dist directory contents:"
-        ls -la dist || echo "dist directory not found"
-        ls -la dist/mac-arm64 || echo "mac-arm64 directory not found"
-        ls -la dist/mac || echo "mac directory not found"
+        find dist -type f -name "*.dmg" || echo "No DMG files found"
 
     - name: Upload DMG artifact
       uses: actions/upload-artifact@v4
@@ -112,6 +142,4 @@ runs:
         name: ${{ inputs.artifact-name }}
         path: |
           ${{ inputs.electron-app-path }}/dist/*.dmg
-          ${{ inputs.electron-app-path }}/dist/mac-arm64/*.dmg
-          ${{ inputs.electron-app-path }}/dist/mac/*.dmg
         if-no-files-found: warn
