@@ -1,4 +1,4 @@
-name : CI Pipeline - DEV
+name: CI Pipeline - DEV
 on:
   workflow_dispatch:
   push:
@@ -39,27 +39,43 @@ jobs:
     permissions:
       id-token: write
     runs-on: ubuntu-latest
-
     steps:
       - uses: actions/checkout@v4
-
       - name: Git Update Current Branch
         uses: owasp-sbot/OSBot-GitHub-Actions/.github/actions/git__update_branch@dev
-
       - name: publish-to-pypi
         uses: owasp-sbot/OSBot-GitHub-Actions/.github/actions/pypi__twine__publish@dev
     needs:
       - increment-tag
 
-  electron__build-dist__macos:
-    name: "Build macOS DMG"
-    runs-on: macos-latest
+  # Build for Intel Mac
+  electron__build-dist__macos-intel:
+    name: "Build macOS DMG (Intel)"
+    runs-on: macos-12  # This uses an Intel-based runner
     steps:
       - uses: actions/checkout@v4
-      - name: "build-macos-dmg"
+      - name: "build-macos-dmg-intel"
         uses: ./.github/actions/electron__build-dist__macos
         with:
           electron-app-path: 'electron_app'
+          artifact-name: 'macos-intel-dmg'
+          mac-certs: ${{ secrets.MAC_CERTS }}
+          mac-certs-password: ${{ secrets.MAC_CERTS_PASSWORD }}
+          apple-id: ${{ secrets.APPLE_ID }}
+          apple-id-password: ${{ secrets.APPLE_ID_PASSWORD }}
+          team-id: ${{ secrets.APPLE_TEAM_ID }}
+
+  # Build for Apple Silicon Mac
+  electron__build-dist__macos-apple:
+    name: "Build macOS DMG (Apple Silicon)"
+    runs-on: macos-latest  # This uses the latest runner, which is Apple Silicon
+    steps:
+      - uses: actions/checkout@v4
+      - name: "build-macos-dmg-apple"
+        uses: ./.github/actions/electron__build-dist__macos
+        with:
+          electron-app-path: 'electron_app'
+          artifact-name: 'macos-apple-dmg'
           mac-certs: ${{ secrets.MAC_CERTS }}
           mac-certs-password: ${{ secrets.MAC_CERTS_PASSWORD }}
           apple-id: ${{ secrets.APPLE_ID }}

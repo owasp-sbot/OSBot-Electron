@@ -1,5 +1,5 @@
-name: 'Build Electron macOS DMG (Universal)'
-description: 'Builds a universal macOS DMG file for both Apple Silicon and Intel-based Macs'
+name: 'Build Electron macOS DMG'
+description: 'Builds a macOS DMG file for an Electron application with code signing'
 
 inputs:
   node-version:
@@ -52,27 +52,6 @@ runs:
         echo "Installing dependencies in ${{ inputs.electron-app-path }}..."
         npm ci || npm install
 
-    # Update electron-builder configuration for universal build
-    - name: Configure universal build
-      shell: bash
-      working-directory: ${{ inputs.electron-app-path }}
-      run: |
-        echo "Configuring for universal build..."
-        # Temporarily modify package.json for universal build
-        if [ -f "package.json" ]; then
-          # Make a backup
-          cp package.json package.json.bak
-          
-          # Update the build configuration for universal binaries
-          # This adds 'universal' to the mac.target array if it doesn't already exist
-          cat package.json | jq '.build.mac.target = if .build.mac.target then (if (.build.mac.target | type) == "array" then .build.mac.target else [.build.mac.target] end) else ["dmg"] end | .build.mac.target = (.build.mac.target | unique) | .build.mac.artifactName = "${productName}-${version}-universal.${ext}" | .build.dmg.artifactName = "${productName}-${version}-universal.${ext}" | .build.mac.target = ["dmg"]' > package.json.tmp
-          mv package.json.tmp package.json
-          
-          # Add architecture setting
-          cat package.json | jq '.build.mac.arch = ["x64", "arm64"]' > package.json.tmp
-          mv package.json.tmp package.json
-        fi
-
     # Setup code signing if certificates are provided
     - name: Setup macOS code signing
       if: inputs.mac-certs != '' && inputs.mac-certs-password != ''
@@ -110,25 +89,22 @@ runs:
         echo "APPLE_ID_PASSWORD=${{ inputs.apple-id-password }}" >> $GITHUB_ENV
         echo "APPLE_TEAM_ID=${{ inputs.team-id }}" >> $GITHUB_ENV
 
-    - name: Build universal macOS app
+    - name: Build macOS app
       shell: bash
       working-directory: ${{ inputs.electron-app-path }}
       run: |
-        echo "Building universal macOS app in ${{ inputs.electron-app-path }}..."
-        # Run build with modified package.json
+        echo "Building macOS app in ${{ inputs.electron-app-path }}..."
+        # If code signing is enabled, the build will use the certificates
         npm run build
-        
-        # Restore original package.json
-        if [ -f "package.json.bak" ]; then
-          mv package.json.bak package.json
-        fi
 
     - name: List dist directory contents
       shell: bash
       working-directory: ${{ inputs.electron-app-path }}
       run: |
         echo "Listing dist directory contents:"
-        find dist -type f -name "*.dmg" || echo "No DMG files found"
+        ls -la dist || echo "dist directory not found"
+        ls -la dist/mac-arm64 || echo "mac-arm64 directory not found"
+        ls -la dist/mac || echo "mac directory not found"
 
     - name: Upload DMG artifact
       uses: actions/upload-artifact@v4
@@ -136,4 +112,6 @@ runs:
         name: ${{ inputs.artifact-name }}
         path: |
           ${{ inputs.electron-app-path }}/dist/*.dmg
+          ${{ inputs.electron-app-path }}/dist/mac-arm64/*.dmg
+          ${{ inputs.electron-app-path }}/dist/mac/*.dmg
         if-no-files-found: warn
