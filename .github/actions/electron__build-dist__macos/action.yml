@@ -1,5 +1,5 @@
-name: 'Build Electron macOS DMG (Self-Signed)'
-description: 'Builds a macOS DMG file for an Electron application with self-signing'
+name: 'Build Electron macOS DMG'
+description: 'Builds a macOS DMG file for an Electron application with code signing'
 
 inputs:
   node-version:
@@ -14,6 +14,26 @@ inputs:
     description: 'Name for the uploaded artifact'
     required: false
     default: 'macos-dmg'
+  mac-certs:
+    description: 'Base64-encoded Apple certificates'
+    required: false
+    default: ''
+  mac-certs-password:
+    description: 'Password for the Apple certificates'
+    required: false
+    default: ''
+  apple-id:
+    description: 'Apple ID to use for notarization'
+    required: false
+    default: ''
+  apple-id-password:
+    description: 'App-specific password for the Apple ID'
+    required: false
+    default: ''
+  team-id:
+    description: 'Apple Developer Team ID'
+    required: false
+    default: ''
 
 runs:
   using: 'composite'
@@ -32,17 +52,13 @@ runs:
         echo "Installing dependencies in ${{ inputs.electron-app-path }}..."
         npm ci || npm install
 
-    - name: Create self-signing certificate
+    # Setup code signing if certificates are provided
+    - name: Setup macOS code signing
+      if: inputs.mac-certs != '' && inputs.mac-certs-password != ''
       shell: bash
       run: |
-        echo "Creating self-signing certificate..."
-        # Create temporary directory for certificates
-        mkdir -p certs
-        
-        # Generate a self-signed certificate
-        openssl req -x509 -newkey rsa:2048 -keyout certs/key.pem -out certs/cert.pem -days 365 -nodes -subj "/CN=Developer Self-Signed/O=Development/C=US"
-        
-        # Create a keychain for the self-signed certificate
+        echo "Setting up code signing..."
+        # Create a temporary keychain
         KEY_CHAIN=build.keychain
         KEY_CHAIN_PASSWORD=temporary_password
         
@@ -52,34 +68,33 @@ runs:
         security unlock-keychain -p "$KEY_CHAIN_PASSWORD" "$KEY_CHAIN"
         security set-keychain-settings -t 3600 -u "$KEY_CHAIN"
         
-        # Convert to p12 format
-        openssl pkcs12 -export -out certs/certificate.p12 -inkey certs/key.pem -in certs/cert.pem -passout pass:temporary
+        # Import the certificates
+        echo "${{ inputs.mac-certs }}" | base64 --decode > certificate.p12
+        security import certificate.p12 -k "$KEY_CHAIN" -P "${{ inputs.mac-certs-password }}" -T "/usr/bin/codesign"
         
-        # Import to keychain
-        security import certs/certificate.p12 -k "$KEY_CHAIN" -P "temporary" -T "/usr/bin/codesign"
-        
-        # Set key partition list
+        # Set key partition list to allow access without UI prompt
         security set-key-partition-list -S apple-tool:,apple: -s -k "$KEY_CHAIN_PASSWORD" "$KEY_CHAIN"
+        
+        # Clean up
+        rm certificate.p12
 
-    - name: Update electron-builder configuration for self-signing
+    - name: Configure notarization environment
+      if: inputs.apple-id != '' && inputs.apple-id-password != '' && inputs.team-id != ''
       shell: bash
       working-directory: ${{ inputs.electron-app-path }}
       run: |
-        echo "Updating electron-builder configuration for self-signing..."
-        # Check if package.json exists
-        if [ -f "package.json" ]; then
-          # Create a temporary file with modified contents
-          cat package.json | jq '.build.mac.identity = null' > package.json.tmp
-          mv package.json.tmp package.json
-        fi
+        echo "Setting up notarization environment..."
+        # Create ENV variables for electron-builder
+        echo "APPLE_ID=${{ inputs.apple-id }}" >> $GITHUB_ENV
+        echo "APPLE_ID_PASSWORD=${{ inputs.apple-id-password }}" >> $GITHUB_ENV
+        echo "APPLE_TEAM_ID=${{ inputs.team-id }}" >> $GITHUB_ENV
 
     - name: Build macOS app
       shell: bash
       working-directory: ${{ inputs.electron-app-path }}
       run: |
         echo "Building macOS app in ${{ inputs.electron-app-path }}..."
-        # Set CSC_NAME to null to skip Apple's notarization
-        export CSC_NAME=null
+        # If code signing is enabled, the build will use the certificates
         npm run build
 
     - name: List dist directory contents
@@ -88,7 +103,8 @@ runs:
       run: |
         echo "Listing dist directory contents:"
         ls -la dist || echo "dist directory not found"
-        find dist -type f -name "*.dmg" || echo "No DMG files found"
+        ls -la dist/mac-arm64 || echo "mac-arm64 directory not found"
+        ls -la dist/mac || echo "mac directory not found"
 
     - name: Upload DMG artifact
       uses: actions/upload-artifact@v4
@@ -98,17 +114,4 @@ runs:
           ${{ inputs.electron-app-path }}/dist/*.dmg
           ${{ inputs.electron-app-path }}/dist/mac-arm64/*.dmg
           ${{ inputs.electron-app-path }}/dist/mac/*.dmg
-        if-no-files-found: warn
-
-    - name: Create releases directory
-      shell: bash
-      run: |
-        mkdir -p releases
-        find ${{ inputs.electron-app-path }}/dist -name "*.dmg" -exec cp {} releases/ \;
-
-    - name: Upload releases directory as artifact
-      uses: actions/upload-artifact@v4
-      with:
-        name: releases
-        path: releases
         if-no-files-found: warn
