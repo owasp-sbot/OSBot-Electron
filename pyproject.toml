@@ -1,0 +1,13 @@
+[tool.poetry]
+name        = "osbot_electron"
+version     = "v0.1.0"
+description = "MGraph-DB"
+authors     = ["Dinis Cruz <dinis.cruz@owasp.org>"]
+license     = "Apache 2.0"
+readme      = "README.md"
+homepage    = "https://github.com/owasp-sbot/OSBot-Electron"
+repository  = "https://github.com/owasp-sbot/OSBot-Electron"
+
+[tool.poetry.dependencies]
+python          = "^3.11"
+osbot-utils     = "*"
