@@ -13,7 +13,6 @@ env:
 jobs:
 
   run-tests:
-    if: False
     name: "Run tests"
     runs-on: ubuntu-latest
     steps:
@@ -47,20 +46,3 @@ jobs:
         uses: owasp-sbot/OSBot-GitHub-Actions/.github/actions/pypi__twine__publish@dev
     needs:
       - increment-tag
-
-  # Build universal macOS DMG
-  electron__build-dist__macos-universal:
-    name: "Build macOS Universal DMG"
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: "build-macos-universal-dmg"
-        uses: ./.github/actions/electron__build-dist__macos
-        with:
-          electron-app-path: 'electron_app'
-          artifact-name: 'macos-universal-dmg'
-          mac-certs: ${{ secrets.MAC_CERTS }}
-          mac-certs-password: ${{ secrets.MAC_CERTS_PASSWORD }}
-          apple-id: ${{ secrets.APPLE_ID }}
-          apple-id-password: ${{ secrets.APPLE_ID_PASSWORD }}
-          team-id: ${{ secrets.APPLE_TEAM_ID }}
