@@ -4,6 +4,7 @@ const path = require('path');
 const { spawn } = require('child_process');
 
 
+
 // Keep a global reference of the window object and Python process
 let mainWindow;
 let pythonProcess;
@@ -29,21 +30,20 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
+async function set_debug_port() {     // Set Chrome debugging port
+  debugPort = await findAvailablePort(10000);
+  console.log('Chrome Debug Port', debugPort)
+  app.commandLine.appendSwitch('remote-debugging-port', debugPort.toString());
+  // added remote port to connect via Playwright
+  //app.commandLine.appendSwitch('remote-debugging-port', '9222');
+}
 // Start Python FastAPI server and set up the app
 async function initialize() {
-  // Get available random ports
-  debugPort = await findAvailablePort(10000);
   apiPort   = await findAvailablePort(20000);
-  console.log('debugPort', debugPort)
-  console.log('apiPort', apiPort)
 
-  // Set Chrome debugging port
-  //app.commandLine.appendSwitch('remote-debugging-port', debugPort.toString());
+  console.log('FastApi Port', apiPort)
 
-  // added remote port to connect via Playwright
-  app.commandLine.appendSwitch('remote-debugging-port', '9222');
-
-  // wait 500ms
+  // wait 1000ms   for fastapi to start (todo: remove this logic from here)
   await sleep(1000)
   // Start the Python FastAPI server
   startPythonServer();
@@ -174,6 +174,13 @@ function createUrlWindow() {
 
   urlWindow.loadFile('src/url-change.html');
 }
+
+
+function setup() {
+  set_debug_port()      // set the chrome debug port
+}
+
+setup()                 // need this since we can use async in the top level
 
 // This method will be called when Electron has finished initialization
 app.on('ready', initialize);

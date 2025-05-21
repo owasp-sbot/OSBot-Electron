@@ -31,8 +31,8 @@ async def main():
             html_content = await page.content()
 
             # Save the content to a file
-            with open("captured_page.html", "w", encoding="utf-8") as f:
-                f.write(html_content)
+            # with open("captured_page.html", "w", encoding="utf-8") as f:
+            #     f.write(html_content)
 
             # Take a screenshot
             await page.screenshot(path="screenshot.png", full_page=True)
