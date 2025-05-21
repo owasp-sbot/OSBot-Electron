@@ -2,7 +2,7 @@
 
 ## Repo details
 
-![Current Release](https://img.shields.io/badge/release-v0.2.3-blue)
+![Current Release](https://img.shields.io/badge/release-v0.2.4-blue)
 
 This version worked ok on the Electron site of things, opened up the FastAPI and allowed the remote access via Playwright to the opened browser, but the problems started to occur when looking at the deployment options, since now we have to have a node and a python deployment 
 
