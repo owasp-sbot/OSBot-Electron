@@ -1,17 +1,82 @@
 // main.js
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
-const url = require('url');
+const { spawn } = require('child_process');
 
-// Keep a global reference of the window object to prevent garbage collection
+
+// Keep a global reference of the window object and Python process
 let mainWindow;
+let pythonProcess;
+let debugPort;
+let apiPort;
 
-// added remote port to connect via Playwright
-app.commandLine.appendSwitch('remote-debugging-port', '9222');
+function findAvailablePort(startPort) {
+  const net = require('net');
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.unref();
+    server.on('error', reject);
+    server.listen(startPort, () => {
+      const port = server.address().port;
+      server.close(() => {
+        resolve(port);
+      });
+    });
+  });
+}
 
+function sleep(ms) {
+  return new Promise(resolve => setTimeout(resolve, ms));
+}
 
-// FastAPI server URL - this should be configurable in the final app
-const DEFAULT_API_URL = 'http://localhost:8000/docs';
+// Start Python FastAPI server and set up the app
+async function initialize() {
+  // Get available random ports
+  debugPort = await findAvailablePort(10000);
+  apiPort   = await findAvailablePort(20000);
+  console.log('debugPort', debugPort)
+  console.log('apiPort', apiPort)
+
+  // Set Chrome debugging port
+  //app.commandLine.appendSwitch('remote-debugging-port', debugPort.toString());
+
+  // added remote port to connect via Playwright
+  app.commandLine.appendSwitch('remote-debugging-port', '9222');
+
+  // wait 500ms
+  await sleep(1000)
+  // Start the Python FastAPI server
+  startPythonServer();
+
+  // Create the main window
+  createWindow();
+}
+
+function startPythonServer() {
+  // Determine Python executable (use 'python' or 'python3' based on your environment)
+  const pythonExecutable = process.platform === 'win32' ? 'python' : 'python3';
+
+  // Start the FastAPI server with the random port
+  pythonProcess = spawn(pythonExecutable, [
+    path.join(__dirname, '../../osbot_electron/server.py'),
+    '--port', apiPort.toString()
+  ]);
+
+  // Log stdout from Python
+  pythonProcess.stdout.on('data', (data) => {
+    console.log(`Python stdout: ${data}`);
+  });
+
+  // Log stderr from Python
+  pythonProcess.stderr.on('data', (data) => {
+    console.error(`Python stderr: ${data}`);
+  });
+
+  // Handle Python process exit
+  pythonProcess.on('close', (code) => {
+    console.log(`Python process exited with code ${code}`);
+  });
+}
 
 function createWindow() {
   // Create the browser window
@@ -26,7 +91,9 @@ function createWindow() {
   });
 
   // Load the FastAPI Swagger UI
-  mainWindow.loadURL(DEFAULT_API_URL);
+  const apiUrl = `http://localhost:${apiPort}/docs`;
+  console.log(`Loading API URL: ${apiUrl}`);
+  mainWindow.loadURL(apiUrl);
 
   // Open DevTools in development
   if (process.env.NODE_ENV === 'development') {
@@ -109,12 +176,21 @@ function createUrlWindow() {
 }
 
 // This method will be called when Electron has finished initialization
-app.on('ready', createWindow);
+app.on('ready', initialize);
 
 // Quit when all windows are closed
 app.on('window-all-closed', function() {
-  // On macOS applications commonly stay open until explicitly quit
-  if (process.platform !== 'darwin') app.quit();
+  // Kill Python process
+  if (pythonProcess) {
+    // On Windows use taskkill to ensure child processes are stopped
+    if (process.platform === 'win32') {
+      spawn('taskkill', ['/pid', pythonProcess.pid, '/f', '/t']);
+    } else {
+      pythonProcess.kill();
+    }
+  }
+
+  app.quit();
 });
 
 app.on('activate', function() {
@@ -127,4 +203,14 @@ ipcMain.on('change-api-url', (event, newUrl) => {
   if (mainWindow && newUrl) {
     mainWindow.loadURL(newUrl);
   }
+});
+
+// Expose the debug port for client.py to connect to
+ipcMain.handle('get-debug-port', () => {
+  return debugPort;
+});
+
+// Expose the API port for client.py to use
+ipcMain.handle('get-api-port', () => {
+  return apiPort;
 });

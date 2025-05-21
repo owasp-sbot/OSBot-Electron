@@ -4,11 +4,17 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 import uvicorn
 import uuid
+import argparse
+
+# Parse command line arguments
+parser = argparse.ArgumentParser(description='FastAPI Server for Web Content Capture')
+parser.add_argument('--port', type=int, default=8000, help='Port to run the server on')
+args = parser.parse_args()
 
 # Create the FastAPI app
 app = FastAPI(
-    title="MGraph API",
-    description="API for interacting with the MGraph database",
+    title="Web Content Capture API",
+    description="API for capturing and storing web content",
     version="1.0.0",
 )
 
@@ -237,7 +243,11 @@ async def clear_graph():
     edges_db.clear()
     return {"message": "Graph cleared successfully"}
 
+# Rest of your FastAPI code...
+# [Keep your existing routes and models]
 
 if __name__ == "__main__":
+    # Print port information to stdout (will be captured by Electron)
+    print(f"Starting FastAPI server on port {args.port}")
     # Run the FastAPI server
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    uvicorn.run(app, host="127.0.0.1", port=args.port)
