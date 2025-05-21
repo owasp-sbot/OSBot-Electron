@@ -1,6 +1,6 @@
 [tool.poetry]
 name        = "osbot_electron"
-version     = "v0.2.2"
+version     = "v0.2.3"
 description = "MGraph-DB"
 authors     = ["Dinis Cruz <dinis.cruz@owasp.org>"]
 license     = "Apache 2.0"
