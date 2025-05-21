@@ -20,6 +20,11 @@
       "output": "dist"
     },
     "extraResources": [
+      {
+        "from": "../osbot_electron",
+        "to": "osbot_electron",
+        "filter": ["**/*"]
+      },
       "server.py",
       "client.py"
     ],

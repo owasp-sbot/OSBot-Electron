@@ -2,7 +2,7 @@
 const { app, BrowserWindow, Menu, ipcMain } = require('electron');
 const path = require('path');
 const { spawn } = require('child_process');
-
+const fs = require('fs');
 
 
 // Keep a global reference of the window object and Python process
@@ -175,9 +175,24 @@ function createUrlWindow() {
   urlWindow.loadFile('src/url-change.html');
 }
 
+function setup_icon() {
+  const macIconPath = path.join(__dirname, '../assets/icons/osbot-electron.icon.icns');
+  const winIconPath = path.join(__dirname, '../assets/icons/osbot-electron.icon.ico');
+  const linuxIconPath = path.join(__dirname, '../assets/icons/osbot-electron.icon.png');
+
+  if (process.platform === 'darwin') {
+    app.dock.setIcon(path.join(__dirname, '../assets/icons/osbot-electron.icon.png'));
+
+    console.log('Checking icon paths:');
+    console.log('macOS icon exists:', fs.existsSync(macIconPath));
+    console.log('Windows icon exists:', fs.existsSync(winIconPath));
+    console.log('Linux icon exists:', fs.existsSync(linuxIconPath));
+  }
+}
 
 function setup() {
   set_debug_port()      // set the chrome debug port
+  setup_icon()
 }
 
 setup()                 // need this since we can use async in the top level
